@@ -219,7 +219,7 @@ Here is an output from another (perhaps more complicated) run:
 
 
 
-#### th rollup: Run 2
+##### With rollup: Run 2
 ```sql
 mysql> select count(*), product_cd, open_branch_id, year(open_date), sum(avail_balance) from accou
  group by product_cd, open_branch_id, year(open_date) with rollup;
@@ -418,3 +418,85 @@ mysql> select sum(avail_balance) s, product_cd p, open_branch_id b from account 
 7 rows in set (0.00 sec)
 
 ```
+
+## Chapter 9 Subqueries
+
+### What is a Subquery?
+
+A subquery is a query contained _within_ another query (containing statement). 
+It leverages the fact that a query returns a set (a table) of results which 
+can be used as an intermediate result by another (bigger) query.
+
+A subquery is enclosed in a pair of parentheses. 
+
+Like a query, a subquery returns a result set that may consist of:
+
+* A single row with a single column (just one 'value' or 'scalar')
+* Multiple rows with single column (just a single 'vector')
+* Multiple rows with multiple columns (a matrix)
+
+The _type_ of the result set of the subquery determines:
+
+1. How it may be used
+2. What operators the _containing statement_ may use to interact with it
+
+Since a subquery can be executed as a query, you may wonder about the why
+to use subqueries. The main reason to use them is efficiency; instead of
+executing two independent queries, you execute _one_ query, thereby saving time.
+Subqueries are useful in other situations as well.
+
+#### An Elementary Subquery
+
+Given the ``employee`` table, what is the start_date, id, last name and first
+name of the earliest employee (assuming there is only one such employee)?
+
+Since SQL is a declarative language, we can attempt to simply write a query
+that answers the above query thus:
+
+    select start_date, id, lname, fname from employee where 
+           start_date = min(start_date)
+
+This sounds good but what is ``min(start_date)``?
+
+If you enter the query as is, here's what MySQL will return:
+
+    ERROR 1111 (HY000): Invalid use of group function
+
+and that is understandable, because ``min`` is an aggregate function, supposed
+to be used over an implicit or explicit group! In our example, the employee table
+itself is the implicit group whose start_date column is required to have a minimum!
+We an make use of that fact in a query by itself:
+
+    select min(start_date) from employee;
+
+which returns:
+```text
++-----------------+
+| min(start_date) |
++-----------------+
+| 2000-02-09      |
++-----------------+
+1 row in set (0.00 sec)
+```
+
+And then, we can make use of this fact as a subquery by combining the two:
+```sql
+select start_date, emp_id, lname, fname from employee where 
+       start_date = (select min(start_date) from employee);
++------------+--------+-------+--------+
+| start_date | emp_id | lname | fname  |
++------------+--------+-------+--------+
+| 2000-02-09 |      3 | Tyler | Robert |
++------------+--------+-------+--------+
+1 row in set (0.00 sec)
+```
+and getting the result as expected.
+
+## Subquery Types (Based on Relationship with Containing Statement)
+
+Based on the type of the sets a subquery returns, we have already seen how
+it is classified (scalar, vector, matrix). Based on the columns subqueries
+use, they can also be classfied as:
+
+1. Non-correlated 
+2. Correlated
