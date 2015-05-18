@@ -445,7 +445,7 @@ to use subqueries. The main reason to use them is efficiency; instead of
 executing two independent queries, you execute _one_ query, thereby saving time.
 Subqueries are useful in other situations as well.
 
-#### An Elementary Subquery
+#### <a name="elemex"></a>An Elementary Subquery
 
 Given the ``employee`` table, what is the start_date, id, last name and first
 name of the earliest employee (assuming there is only one such employee)?
@@ -496,7 +496,108 @@ and getting the result as expected.
 
 Based on the type of the sets a subquery returns, we have already seen how
 it is classified (scalar, vector, matrix). Based on the columns subqueries
-use, they can also be classfied as:
+use, they can also be classified as:
 
 1. Non-correlated 
 2. Correlated
+
+Most of the usual select queries are non-correlated, whereas correlated queries
+are used in ``update`` and ``delete`` scenarios.
+
+### Non-correlated Subqueries Returning Scalars
+
+(one row and one column)
+
+When the subquery returns a single row and single column, you can use usual
+_scalar comparison operators_ like:
+
+* =
+* <>
+* <
+* >
+* <=
+* >=
+
+If you use a subquery in an equality condition, but the subquery returns more
+than one row, you will receive an error. For the scalar comparison operators to
+be applicable, returned result set (of the subquery) should be scalar. Otherwise
+you will receive an error:
+
+```sql
+Error 1242 (21000): Subquery returns more than one row
+```
+
+We already saw [an example of this above](#elemex) where we used the ``=`` 
+operator.
+
+### Non-correlated Subqueries Returning Vectors
+
+(multiple rows and one column)
+
+To compare the subquery results in this case, we have the following additional
+operators in SQL:
+
+1. IN
+2. NOT IN
+3. ALL
+4. ANY
+
+#### The IN and NOT IN Operators
+
+These two are straightforward: When you are expecting a large set of unknown
+values, you can and should use these two operators. These operators determine
+the _set membership_. An additional wrinkle however, is with the NULLs and we'll
+come back to that issue.
+
+Consider this requirement: __Find all the employees that supervise other employees__.
+
+In our employee table (`emp_id, fname, lname, start_date, end_date,
+superior_emp_id, dept_id, title, assigned_branch_id`), some employees supervise
+other employees, whereas other do not. We are asked to find those employees
+that do. 
+
+Employee that _is_ an employee's supervisor is denoted as superior_emp_id of
+that employee's record. So, we can find (the set of) all the superior_emp_id's and then
+check if the emp_id of every record is _IN_ that set:
+
+```sql
+mysql> select emp_id, fname, lname from employee where emp_id IN 
+       (select distinct superior_emp_id from employee);
++--------+---------+-----------+
+| emp_id | fname   | lname     |
++--------+---------+-----------+
+|      1 | Michael | Smith     |
+|      3 | Robert  | Tyler     |
+|      4 | Susan   | Hawthorne |
+|      6 | Helen   | Fleming   |
+|     10 | Paula   | Roberts   |
+|     13 | John    | Blake     |
+|     16 | Theresa | Markham   |
++--------+---------+-----------+
+7 rows in set (0.00 sec)
+```
+
+The use of `distinct` in above query is optional, but denotes a good practice.
+
+Thus, we come to know that the employees with id ``1, 3, 4, 5, 6, 10, 13, 16``
+are __supervisors__. 
+
+A simple observation we'd make is that the other employees 
+``2, 7, 8, 9, 11, 12, 14, 15`` must be non supervisors since an employee is 
+either a supervisor or not. We readily convert that observation into a query 
+that _negates_ the above query:
+
+```sql
+mysql> select emp_id, fname, lname from employee where emp_id NOT IN 
+       (select distinct superior_emp_id from employee);
+```
+
+This query returns a rather unexpected response however:
+
+```sql
+Empty set (0.00 sec)
+```
+
+### Non-correlated Subqueries Returning Matrices
+
+(multiple rows and multiple columns)
