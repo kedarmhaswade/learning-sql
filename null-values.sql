@@ -12,7 +12,4 @@ create table parts(pno varchar(30), city varchar(20));
 insert into suppliers (sno, city) values ('S1', 'London');
 insert into parts (pno) values ('P1');
 
-select sno, pno
-From suppliers, parts
-Where suppliers.city <> parts.city
-Or parts.city <> ’Paris’;
+select sno, pno from suppliers, parts where suppliers.city <> parts.city or parts.city <> 'Paris';
