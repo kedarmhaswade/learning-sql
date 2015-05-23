@@ -579,7 +579,7 @@ mysql> select emp_id, fname, lname from employee where emp_id IN
 
 The use of `distinct` in above query is optional, but denotes a good practice.
 
-Thus, we come to know that the employees with id ``1, 3, 4, 5, 6, 10, 13, 16``
+<a name="7sup"></a>Thus, we come to know that the employees with id ``1, 3, 4, 5, 6, 10, 13, 16``
 are __supervisors__. 
 
 A simple observation we'd make is that the other employees 
@@ -592,10 +592,153 @@ mysql> select emp_id, fname, lname from employee where emp_id NOT IN
        (select distinct superior_emp_id from employee);
 ```
 
-This query returns a rather unexpected response however:
+__This query returns a rather unexpected response however__:
 
 ```sql
 Empty set (0.00 sec)
+```
+
+So, why does this happen? And that too specifically with __NOT IN__?
+The reason has to do with how SQL handles NULLs. Much has been said about the
+[problem of NULLs](p23.grant.pdf) and their handling by SQL.
+
+Let's run the subquery as an independent query:
+
+```sql
+mysql> select distinct superior_emp_id from employee;
++-----------------+
+| superior_emp_id |
++-----------------+
+|            NULL |
+|               1 |
+|               3 |
+|               4 |
+|               6 |
+|              10 |
+|              13 |
+|              16 |
++-----------------+
+8 rows in set (0.00 sec)
+```
+
+So, we get an additional `superior_emp_id` we did not consider before: NULL.
+How does it change anything, you say.
+
+Consider the following output from MySQL:
+
+```sql
+mysql> select 2 in (1, 3);
++-------------+
+| 2 in (1, 3) |
++-------------+
+|           0 |
++-------------+
+1 row in set (0.00 sec)
+
+mysql> select 2 in (1, NULL);
++----------------+
+| 2 in (1, NULL) |
++----------------+
+|           NULL |
++----------------+
+1 row in set (0.00 sec)
+
+mysql> select 2 not in (1, NULL);
++--------------------+
+| 2 not in (1, NULL) |
++--------------------+
+|               NULL |
++--------------------+
+1 row in set (0.00 sec)
+
+
+```
+Thus, 2 is definitely NOT IN the set {1, 3} whose members are well-known. But is
+2 IN or NOT IN {1, NULL}? Well, SQL thinks it can't say either way and denotes the result
+as NULL which implies __UNKNOWN__. 
+
+This is compounded by how SQL determines the truth values of complex expressions
+that are joined by connectives like OR, NOT, AND.
+
+So, let's see how SQL chooses to perform the NOT IN operation when it looks at the
+record with emp_id is 2 and the set is ``1, 3, 4, 6, 10, 13, 16, NULL`` (the set
+of all superior_emp_id's). Clearly, 2 does not equal 1 (comparion operator returns
+0 i.e. false), neither does 2 equal any of ``3, 4, 6, 10, 13, and 16``. But when it
+comes to compare 2 with NULL, an unknown value and the result of comparison is
+'unknown'. Thus, the truth value of the complex expression becomes
+``false or false or ...`` unknown and the result of that expression is well,
+__unknown__. So, 
+
+__It is unknown whether the emp_id 2 is NOT in  
+``1, 3, 4, 6, 10, 13, 16, NULL`` -- the real set of all id's of superiors__.
+
+To further illustrate this point, note that the three-valued logic that SQL implements
+follows Kleene's logic and the truth table for ``A ∨ B (A OR B)`` is:
+
+<table class="wikitable" style="text-align: center;">
+<tbody><tr>
+<th rowspan="2" colspan="2"><i>A</i> ∨ <i>B</i></th>
+<th colspan="3"><i>B</i></th>
+</tr>
+<tr>
+<th colspan="1">F</th>
+<th colspan="1">U</th>
+<th colspan="1">T</th>
+</tr>
+<tr>
+<th scope="row" rowspan="3" style="padding: 0px 10px;"><i>A</i></th>
+<th scope="row" width="25">F</th>
+<td align="center">F</td>
+<td align="center">U</td>
+<td align="center">T</td>
+</tr>
+<tr>
+<th scope="row" width="25">U</th>
+<td align="center">*U*</td>
+<td align="center">U</td>
+<td align="center">T</td>
+</tr>
+<tr>
+<th scope="row" width="25">T</th>
+<td align="center">T</td>
+<td align="center">T</td>
+<td align="center">T</td>
+</tr>
+</tbody></table>
+
+<table>
+<th>
+Thus, a (FALSE OR UNDEFINED) produces an UNDEFINED and SQL can't determine
+if 2 is in that set. Thus, with three-valued logic, 2 is neither in the
+set {1, 3, 4, 6, 10, 13, 16, NULL} nor is it not in the set.
+</th>
+</table>
+
+And this is why we must be aware of handling the NULL values specially. 
+
+
+The correct query to return the id's of the employees that are non-supervisors
+is:
+
+```sql
+mysql> select emp_id from employee where emp_id not in 
+    (select distinct superior_emp_id  from employee where superior_emp_id is not null);
++--------+
+| emp_id |
++--------+
+|      2 |
+|      5 |
+|      7 |
+|      8 |
+|      9 |
+|     11 |
+|     12 |
+|     14 |
+|     15 |
+|     17 |
+|     18 |
++--------+
+11 rows in set (0.03 sec)
 ```
 
 ### Non-correlated Subqueries Returning Matrices
