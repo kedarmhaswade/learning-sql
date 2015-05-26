@@ -744,3 +744,74 @@ mysql> select emp_id from employee where emp_id not in
 ### Non-correlated Subqueries Returning Matrices
 
 (multiple rows and multiple columns)
+
+This is an extension of the above. Just like you can check whether a scalar is
+a member of set of scalars, you can check whether an n-tuple (a _sequence_ of
+_n_ scalars) is a member of set of n-tuples:
+
+```sql
+mysql> select (1,2) in ((2, 3), (1, 2));
++---------------------------+
+| (1,2) in ((2, 3), (1, 2)) |
++---------------------------+
+|                         1 |
++---------------------------+
+1 row in set (0.00 sec)
+```
+Note that (1,2) is not the same as (2,1), the order matters.
+
+It can be observed that you could always replace a subquery that returns and checks
+for n columns by n subqueries that each compare one column. It usually is more efficient
+to run minimum number of subqueries to get the same result. The following illustrates
+the point.
+
+Consider that you want to find out the avail_balance and account_id's of the
+accounts that were opened by employees who were either Teller or Head Teller
+in the Woburn branch.
+
+One way to deal with this is to separately consider two subqueries, each handling
+one of the required parts with an IN operator:
+```sql
+mysql> select account_id, avail_balance from account where open_branch_id IN 
+       (select branch_id from branch where city = 'Woburn') and open_emp_id IN 
+       (select emp_id from employee where title IN ('Teller', 'Head Teller'));
++------------+---------------+
+| account_id | avail_balance |
++------------+---------------+
+|          1 |       1057.75 |
+|          2 |        500.00 |
+|          3 |       3000.00 |
+|          4 |       2258.02 |
+|          5 |        200.00 |
+|         17 |       5000.00 |
+|         27 |       9345.55 |
++------------+---------------+
+7 rows in set (0.00 sec)
+```
+
+This query uses two subqueries. It could be replaced by just one subquery
+involving a join of two tables thus:
+```sql
+mysql> select account_id, avail_balance from account where 
+       (open_branch_id, open_emp_id) IN 
+       (select b.branch_id, e.emp_id from branch b INNER JOIN employee e ON 
+       b.branch_id = e.assigned_branch_id where b.city = 'Woburn' and 
+       e.title IN ('Teller', 'Head Teller'));
++------------+---------------+
+| account_id | avail_balance |
++------------+---------------+
+|          1 |       1057.75 |
+|          2 |        500.00 |
+|          3 |       3000.00 |
+|          4 |       2258.02 |
+|          5 |        200.00 |
+|         17 |       5000.00 |
+|         27 |       9345.55 |
++------------+---------------+
+7 rows in set (0.00 sec)
+```
+
+There could be yet another way to do this using SQL joins of three tables. The
+thing to remember is that with SQL, [many ways][1] can get you there.
+
+[1]: http://en.wikipedia.org/wiki/There%27s_more_than_one_way_to_do_it
