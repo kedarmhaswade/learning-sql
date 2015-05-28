@@ -814,4 +814,58 @@ mysql> select account_id, avail_balance from account where
 There could be yet another way to do this using SQL joins of three tables. The
 thing to remember is that with SQL, [many ways][1] can get you there.
 
+## Correlated Subqueries
+
+A non-correlated subquery is independent of the containing statement. Thus,
+the non-correlated subquery can be executed and inspected separately. A correlated
+subquery, on the other hand, is __dependent on its containing statement__ from 
+which it references one or more columns.
+
+A non-correlated subquery is executed once for the containing query, prior to the 
+execution of the containing statement.
+
+A correlated subquery is executed once for _each candidate row_ (a row that might
+be included in the final results).
+
+Consider the problem of finding out the customer id, type (business or indiv),
+and the city (address) for each customer that has exactly two accounts: 
+
+If we knew the id of a customer, we can easily find out the number of accounts
+that customer has. This number can be compared with 2 in a subquery which borrows
+the customer id from the containing statement:
+```sql
+select c.cust_id, c.cust_type_cd, c.city from customer c where 
+(select count(*) from account a where a.cust_id = c.cust_id) = 2;
+
++---------+--------------+---------+
+| cust_id | cust_type_cd | city    |
++---------+--------------+---------+
+|       2 | I            | Woburn  |
+|       3 | I            | Quincy  |
+|       6 | I            | Waltham |
+|       8 | I            | Salem   |
+|      10 | B            | Salem   |
++---------+--------------+---------+
+5 rows in set (0.00 sec)
+```
+
+The correlated subquery, in a way, acts like a filter that is executed
+for each candidate record which, in this case, happens to be each customer.
+
+The operator BETWEEN can be used with scalars returned by subqueries.
+
+## The exists operator
+While you will often see correlated subqueries used in equality and range
+conditions, the most common operator used to build conditions that utilize
+correlated subqueries is the __exists__ operator which simply checks if
+subquery returned any rows.
+
+Convention is to use select 1 (the literal 1) or select (*) when using
+exists operator, although select 1 is probably easiest and the most 
+efficient because what is of essence is the filter condition, we are not
+interested the actual data that is returned, only whether it contained any 
+records.
+
+Like there's _exists_, there's __not exists__ as well.
+
 [1]: http://en.wikipedia.org/wiki/There%27s_more_than_one_way_to_do_it
