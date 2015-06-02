@@ -860,12 +860,12 @@ conditions, the most common operator used to build conditions that utilize
 correlated subqueries is the __exists__ operator which simply checks if
 subquery returned any rows.
 
-Convention is to use select 1 (the literal 1) or select (*) when using
-exists operator, although select 1 is probably easiest and the most 
+Convention is to use `select 1` (the literal 1) or `select (*)` when using
+the exists operator, although select 1 is probably easiest and the most 
 efficient because what is of essence is the filter condition, we are not
 interested the actual data that is returned, only whether it contained any 
 records.
 
-Like there's _exists_, there's __not exists__ as well.
+Like there exists __exists__, there exists  __not exists__ as well :-).
 
 [1]: http://en.wikipedia.org/wiki/There%27s_more_than_one_way_to_do_it
