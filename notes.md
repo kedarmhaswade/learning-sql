@@ -1001,4 +1001,48 @@ mysql> select e.fname, e.lname, e.emp_id, (select name from department where dep
 +----------+-----------+--------+----------------+---------------+
 18 rows in set (0.00 sec)
 ```
+
+# Chapter 10 Joins Revisited
+
+In _inner joins_, the records are rejected if there is a value for the join column in one
+of the tables is missing. Thus, if you perform an inner join between the employee table and department table on the dept_id column and for a record if dept_id is missing, then that record will be removed from the join.
+
+Outer Joins, on the other hand, are different.
+
+## Outer Joins
+
+A helpful way to think of utility of an outer join is by an example. Consider the employee table. What will you do if you want to come up with a list of employees and their supervisors?
+
+A self-inner-join of the employee table on the supervisor_id of first table and emp_id of the second, you say? Let's see:
+
+```sql
+mysql> select e.fname employee_first, e.lname employee_last, m.fname manager_first, 
+       m.lname manager_last from employee e inner join employee m 
+       on e.superior_emp_id = m.emp_id;
++----------------+---------------+---------------+--------------+
+| employee_first | employee_last | manager_first | manager_last |
++----------------+---------------+---------------+--------------+
+| Susan          | Barker        | Michael       | Smith        |
+| Robert         | Tyler         | Michael       | Smith        |
+| Susan          | Hawthorne     | Robert        | Tyler        |
+| John           | Gooding       | Susan         | Hawthorne    |
+| Helen          | Fleming       | Susan         | Hawthorne    |
+| Chris          | Tucker        | Helen         | Fleming      |
+| Sarah          | Parker        | Helen         | Fleming      |
+| Jane           | Grossman      | Helen         | Fleming      |
+| Paula          | Roberts       | Susan         | Hawthorne    |
+| Thomas         | Ziegler       | Paula         | Roberts      |
+| Samantha       | Jameson       | Paula         | Roberts      |
+| John           | Blake         | Susan         | Hawthorne    |
+| Cindy          | Mason         | John          | Blake        |
+| Frank          | Portman       | John          | Blake        |
+| Theresa        | Markham       | Susan         | Hawthorne    |
+| Beth           | Fowler        | Theresa       | Markham      |
+| Rick           | Tulman        | Theresa       | Markham      |
++----------------+---------------+---------------+--------------+
+17 rows in set (0.00 sec)
+```
+This looks correct. However, we have 18 employees (`select count(*) from employee`) but the above query returns only 17 records. Either an employee has a manager or not, so if an employee does _not_ have a manager, we should acknowledge that and this is exactly what this query does not
+do. It does not acknowledge that Michael Smith, the president of the company, does not have a manager.
+
 [1]: http://en.wikipedia.org/wiki/There%27s_more_than_one_way_to_do_it
