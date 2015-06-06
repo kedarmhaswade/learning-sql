@@ -160,12 +160,14 @@ for an account if the product type is BUS (business) and the branch is Woburn
 
 In our present example, there are __6__ different types of products (``select count(*) 
 from account group by product_cd;``) and __4__ different branches (``select count(*) 
-from branch``), which means we have __6 ⨉ 4__ groups formed that way. Over these
+from branch``), which means we _can_ have __6 ⨉ 4__ groups (at most) formed that way. Over these
 24 groups, we can apply:
 
 1. Several aggregate functions, and
 2. A few options
 
+(Some of the groups will be empty and removed from the output. For instance, the
+group of BUS accounts opened at the Headquarters (open_branch_id = 1) is empty).
 We have seen aggregate functions like avg, max, min, sum, count etc. but the 
 options are something new. There are two options that are of interest:
 
@@ -175,7 +177,7 @@ The dictionary meaning of rollup is accumulation. A few actual runs of this opti
 will clarify what this option does.
 
 The dictionary meaning of rollup is __accumulation__. A few actual runs of this option
-will clarify what this option does.
+will clarify what it does.
 
 ##### With rollup: Run 1
 
@@ -868,4 +870,135 @@ records.
 
 Like there exists __exists__, there exists  __not exists__ as well :-).
 
+### Data Manipulation Using Correlated Subqueries
+
+## When to Use Subqueries
+
+Subqueries are versatile. They can be used to
+
+1. Construct custom tables
+2. Build filter conditions
+3. Generate column values
+
+### Subqueries as Data Sources
+#### Data Fabrication
+#### Task-oriented Subqueries
+### Subqueries in Filter Conditions
+### Subqueries as Expression Generators
+
+## Subquery Wrap-up
+
+Subqueries have some really useful applications and they are a great tool in your arsenal.
+
+1. Subqueries return single row single column (scalar), single row multiple columns (vectors) or multiple rows and multiple columns (matrices).
+2. Non-correlated subqueries are independent of containing statements and are executed _once_ for the entire containing statement.
+3. Correlated subqueries are dependent on columns from containing statement and are executed once for each _candidate record_ returned by the containing statement.
+4. Scalar subqueries, (since they return scalars) can utilize comparison operators (`=, <>, <=, >=`). Vector subqueries can utilize special purpose operators (`IN, NOT IN, EXISTS, NOT EXISTS`) and vector and matrix subqueries can utilize (`EXISTS, NOT EXISTS`). The EXISTS and NOT EXISTS operators are useful for efficiently checking if a result set is non-empty.
+5. Subqueries can be found in `select, update, delete and insert` statements although MySQL behaves rather weirdly with `delete`s.
+6. Since the result sets of subqueries are tables, they can be used in joins with other tables. This makes subqueries _data sources_.
+7. The subqueries returning scalars can become useful values that can be placed where a value is needed.
+
+This chapter covers a lot of ground. One will need to come back and refer to this chapter time and again.
+
+## Exercises
+
+### Exercise 9-1
+Find all the loan accounts (`product.product_type_cd = 'LOAN'`). Hint: Use a non-correlated subquery. 
+
+The product_cd can have a few possibilities for the product_type_cd to be 'LOAN' which we can find out from a subquery. The subquery will return multiple rows with single column (each row representing that product_cd for which product_type_cd is 'LOAN'. And then we can examine for each account if the product_cd is in that 'vector'.
+
+```sql
+mysql> select account_id, product_cd, cust_id, avail_balance from account 
+     where product_cd in (select product_cd from product where product_type_cd = 'LOAN');
++------------+------------+---------+---------------+
+| account_id | product_cd | cust_id | avail_balance |
++------------+------------+---------+---------------+
+|         25 | BUS        |      10 |          0.00 |
+|         27 | BUS        |      11 |       9345.55 |
+|         29 | SBL        |      13 |      50000.00 |
++------------+------------+---------+---------------+
+3 rows in set (0.00 sec)
+
+```
+### Exercise 9-2
+Find all the loan accounts (`product.product_type_cd = 'LOAN'`). Hint: Use a correlated subquery. 
+
+Given a product_cd of an account, we can easily verify if its product_type_cd from the product table is 'LOAN'. We can then select an account that satisfies that condition. This requires the product_cd from account to be correlated with the subquery:
+
+```sql
+mysql> select account_id, product_cd, cust_id, avail_balance from account 
+     where (select product_type_cd from product where product_cd = account.product_cd) 
+     = 'LOAN';
++------------+------------+---------+---------------+
+| account_id | product_cd | cust_id | avail_balance |
++------------+------------+---------+---------------+
+|         25 | BUS        |      10 |          0.00 |
+|         27 | BUS        |      11 |       9345.55 |
+|         29 | SBL        |      13 |      50000.00 |
++------------+------------+---------+---------------+
+3 rows in set (0.00 sec)
+```
+### Exercise 9-3
+
+```sql
+mysql> select e.fname, e.lname, levels.name, e.start_date from employee e inner join 
+   (select 'trainee' name, '2004-01-01' start_date, '2005-12-31' end_date UNION ALL 
+    select 'worker' name, '2002-01-01' start_date, '2003-12-31' end_date UNION ALL 
+    select 'mentor' name, '2000-01-01' start_date, '2001-12-31' end_date) levels 
+    on e.start_date >= levels.start_date and e.start_date <= levels.end_date 
+    order by levels.name;
++----------+-----------+---------+------------+
+| fname    | lname     | name    | start_date |
++----------+-----------+---------+------------+
+| Thomas   | Ziegler   | mentor  | 2000-10-23 |
+| Michael  | Smith     | mentor  | 2001-06-22 |
+| Theresa  | Markham   | mentor  | 2001-03-15 |
+| John     | Blake     | mentor  | 2000-05-11 |
+| Robert   | Tyler     | mentor  | 2000-02-09 |
+| Helen    | Fleming   | trainee | 2004-03-17 |
+| Chris    | Tucker    | trainee | 2004-09-15 |
+| Rick     | Tulman    | worker  | 2002-12-12 |
+| Susan    | Hawthorne | worker  | 2002-04-24 |
+| Frank    | Portman   | worker  | 2003-04-01 |
+| Sarah    | Parker    | worker  | 2002-12-02 |
+| Samantha | Jameson   | worker  | 2003-01-08 |
+| John     | Gooding   | worker  | 2003-11-14 |
+| Jane     | Grossman  | worker  | 2002-05-03 |
+| Susan    | Barker    | worker  | 2002-09-12 |
+| Beth     | Fowler    | worker  | 2002-06-29 |
+| Paula    | Roberts   | worker  | 2002-07-27 |
+| Cindy    | Mason     | worker  | 2002-08-09 |
++----------+-----------+---------+------------+
+18 rows in set (0.00 sec)
+
+```
+### Exercise 9-4
+Retrieve employee ID, first name, last name and names of department and assigned branch of each employee. Do _not join_ any tables.
+
+```sql
+mysql> select e.fname, e.lname, e.emp_id, (select name from department where dept_id = e.dept_id) department, (select name from branch where branch_id = e.assigned_branch_id) branch from employee e; 
++----------+-----------+--------+----------------+---------------+
+| fname    | lname     | emp_id | department     | branch        |
++----------+-----------+--------+----------------+---------------+
+| Michael  | Smith     |      1 | Administration | Headquarters  |
+| Susan    | Barker    |      2 | Administration | Headquarters  |
+| Robert   | Tyler     |      3 | Administration | Headquarters  |
+| Susan    | Hawthorne |      4 | Operations     | Headquarters  |
+| John     | Gooding   |      5 | Loans          | Headquarters  |
+| Helen    | Fleming   |      6 | Operations     | Headquarters  |
+| Chris    | Tucker    |      7 | Operations     | Headquarters  |
+| Sarah    | Parker    |      8 | Operations     | Headquarters  |
+| Jane     | Grossman  |      9 | Operations     | Headquarters  |
+| Paula    | Roberts   |     10 | Operations     | Woburn Branch |
+| Thomas   | Ziegler   |     11 | Operations     | Woburn Branch |
+| Samantha | Jameson   |     12 | Operations     | Woburn Branch |
+| John     | Blake     |     13 | Operations     | Quincy Branch |
+| Cindy    | Mason     |     14 | Operations     | Quincy Branch |
+| Frank    | Portman   |     15 | Operations     | Quincy Branch |
+| Theresa  | Markham   |     16 | Operations     | So. NH Branch |
+| Beth     | Fowler    |     17 | Operations     | So. NH Branch |
+| Rick     | Tulman    |     18 | Operations     | So. NH Branch |
++----------+-----------+--------+----------------+---------------+
+18 rows in set (0.00 sec)
+```
 [1]: http://en.wikipedia.org/wiki/There%27s_more_than_one_way_to_do_it
