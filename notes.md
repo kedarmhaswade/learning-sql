@@ -1045,4 +1045,241 @@ mysql> select e.fname employee_first, e.lname employee_last, m.fname manager_fir
 This looks correct. However, we have 18 employees (`select count(*) from employee`) but the above query returns only 17 records. Either an employee has a manager or not, so if an employee does _not_ have a manager, we should acknowledge that and this is exactly what this query does not
 do. It does not acknowledge that Michael Smith, the president of the company, does not have a manager.
 
+Michael Smith would have been chosen from the _left_ table if we were not to care what the _right_ table returns for the join condition. When the join is being performed and the Michael Smith record from the _left_ table becomes a candidate, the _right_ table reutrns m.emp_id as 1 in exactly one case (i.e. when the record from the right table is also that of Michael Smith). The point however is that for Michael Smith to occur in the result set, we do want to choose this record even when the right table has the join condition missing. Thus, when the _left table_ brings in the record with emp_id = 1, we ignore everything (columns) that the _right table_ brings in. This effectively makes the record from the _left table_ to fall through into the result set with the specified right table fields fetching NULL's.
+
+This effect is achieved when we do a __left outer join instead of the inner join__ of the employee table (employee) with itself (manager):
+
+```sql
+mysql> select e.fname employee_first, e.lname employee_last, 
+              m.fname manager_first, m.lname manager_last 
+              from employee e left outer join employee m 
+              on e.superior_emp_id = m.emp_id;
++----------------+---------------+---------------+--------------+
+| employee_first | employee_last | manager_first | manager_last |
++----------------+---------------+---------------+--------------+
+| Michael        | Smith         | NULL          | NULL         |
+| Susan          | Barker        | Michael       | Smith        |
+| Robert         | Tyler         | Michael       | Smith        |
+| Susan          | Hawthorne     | Robert        | Tyler        |
+| John           | Gooding       | Susan         | Hawthorne    |
+| Helen          | Fleming       | Susan         | Hawthorne    |
+| Chris          | Tucker        | Helen         | Fleming      |
+| Sarah          | Parker        | Helen         | Fleming      |
+| Jane           | Grossman      | Helen         | Fleming      |
+| Paula          | Roberts       | Susan         | Hawthorne    |
+| Thomas         | Ziegler       | Paula         | Roberts      |
+| Samantha       | Jameson       | Paula         | Roberts      |
+| John           | Blake         | Susan         | Hawthorne    |
+| Cindy          | Mason         | John          | Blake        |
+| Frank          | Portman       | John          | Blake        |
+| Theresa        | Markham       | Susan         | Hawthorne    |
+| Beth           | Fowler        | Theresa       | Markham      |
+| Rick           | Tulman        | Theresa       | Markham      |
++----------------+---------------+---------------+--------------+
+18 rows in set (0.00 sec)
+
+```
+This correctly reflects the situation as the NULL values for manager's first and last name for Michael Smith denote that that employee has no manager, which is correct.
+
+In an outer join, the table whose records _fall through into the result set_ is specified using the words _left_ and _right_:
+
+1. __left__ outer join: fields from the left table are chosen
+2. __right__ outer join: fields from the right table are chosen
+
+To illustrate this point, let's run the following query and before you see the results, think of what it would actually return:
+
+```sql
+mysql> select e.fname employee_first, e.lname employee_last, 
+              m.fname manager_first, m.lname manager_last 
+              from employee e right outer join employee m 
+              on e.superior_emp_id = m.emp_id;
+```
+
+The only difference between this query and the previous one is that the previous query took a _left_ outer join, whereas this one takes the _right_ outer join of the employee table with itself.
+
+Note that:
+
+1. We are interested in employees from the left table.
+2. We are interested in managers from the right table.
+3. When the employee's superior_emp_id matches manager's emp_id, we choose that record. This chooses employees and their managers.
+4. We let the records from the __right table to fall through__ into the result set even when the left table brings nothing. Thus, for a certain emp_id in employee table, even if we don't have any other employee whose superior_emp_id matches that emp_id, we choose the first and last name from the second table. This lets ... 
+
+Yes, the non-managers also to show up in the result set.
+
+Thus, this one query chooses all the employees and their managers and all the non-managers:
+```sql
++----------------+---------------+---------------+--------------+
+| employee_first | employee_last | manager_first | manager_last |
++----------------+---------------+---------------+--------------+
+| Susan          | Barker        | Michael       | Smith        |
+| Robert         | Tyler         | Michael       | Smith        |
+| NULL           | NULL          | Susan         | Barker       |
+| Susan          | Hawthorne     | Robert        | Tyler        |
+| John           | Gooding       | Susan         | Hawthorne    |
+| Helen          | Fleming       | Susan         | Hawthorne    |
+| Paula          | Roberts       | Susan         | Hawthorne    |
+| John           | Blake         | Susan         | Hawthorne    |
+| Theresa        | Markham       | Susan         | Hawthorne    |
+| NULL           | NULL          | John          | Gooding      |
+| Chris          | Tucker        | Helen         | Fleming      |
+| Sarah          | Parker        | Helen         | Fleming      |
+| Jane           | Grossman      | Helen         | Fleming      |
+| NULL           | NULL          | Chris         | Tucker       |
+| NULL           | NULL          | Sarah         | Parker       |
+| NULL           | NULL          | Jane          | Grossman     |
+| Thomas         | Ziegler       | Paula         | Roberts      |
+| Samantha       | Jameson       | Paula         | Roberts      |
+| NULL           | NULL          | Thomas        | Ziegler      |
+| NULL           | NULL          | Samantha      | Jameson      |
+| Cindy          | Mason         | John          | Blake        |
+| Frank          | Portman       | John          | Blake        |
+| NULL           | NULL          | Cindy         | Mason        |
+| NULL           | NULL          | Frank         | Portman      |
+| Beth           | Fowler        | Theresa       | Markham      |
+| Rick           | Tulman        | Theresa       | Markham      |
+| NULL           | NULL          | Beth          | Fowler       |
+| NULL           | NULL          | Rick          | Tulman       |
++----------------+---------------+---------------+--------------+
+28 rows in set (0.00 sec)
+```
+Thus, when the 'manager' is 'Susan Barker' (for instance), the employee is NULL NULL, which means there is no employee that reports to 'Susan Barker' and the chosen record will accept nothing from left table and everything we need (m.fname, m.lname) from the right table.
+
+Note that we chose the above __right outer join__ because we wanted both managers and non-managers to show up in the result set of _a single query_. If we just needed to find the names of non-managers, we'd rather resort to subquery (although there are other ways):
+```sql
+mysql> select fname, lname from employee where emp_id not in 
+    (select distinct superior_emp_id from employee where superior_emp_id is not null);
++----------+----------+
+| fname    | lname    |
++----------+----------+
+| Susan    | Barker   |
+| John     | Gooding  |
+| Chris    | Tucker   |
+| Sarah    | Parker   |
+| Jane     | Grossman |
+| Thomas   | Ziegler  |
+| Samantha | Jameson  |
+| Cindy    | Mason    |
+| Frank    | Portman  |
+| Beth     | Fowler   |
+| Rick     | Tulman   |
++----------+----------+
+11 rows in set (0.00 sec)
+```
+In case of outer join the candidate record for which the other table does not satisfy the join condition is included in the result set only once. 
+
+Thus, though inner joins are more common, outer joins are useful too.
+
+## Cross Joins
+
+Cross Joins are the Cartesian product of the two tables. They return all combinations of the rows of the two tables and hence the [rule of product](http://en.wikipedia.org/wiki/Rule_of_product) applies. 
+
+An interesting use case occurs when you need to fabricate data with numbers. This is where the Cross Joins are useful, although they are generally considered not so useful. See [Exercise 10-4](#exercise-10-4).
+
+## Exercises 
+
+### Exercise 10-1
+select p.name, p.product_cd, a.account_id from product p left outer join account a
+  on p.product_cd = a.product_cd;
+  
+### Exercise 10-2
+select p.name, p.product_cd, a.account_id from account a right outer join product p
+  on p.product_cd = a.product_cd;
+
+### Exercise 10-3
+select ab.account_id, ab.product_cd, i.fname, i.lname, ab.name from (select a.cust_id, a.account_id, a.product_cd, b.name from account a left outer join business b 
+ on a.cust_id = b.cust_id) ab left outer join individual i on
+ ab.cust_id = i.cust_id order by ab.account_id;
+  
+### Exercise 10-4
+Generate a table of numbers {1..100} using Cross Join.
+
+The two fabricated tables each have 10 records: first from 0 to 9 (counting by 1) and the second from 0 to 90 (counting by 10):
+```text
+units  tens
+  0      0
+  1     10
+  2     20
+  3     30
+  ...
+  9     90
+```
+The sets are generated then by cross join:
+```text
+{0, 0}
+{1, 0}
+{2, 0}
+...
+{9, 0}
+{0, 10}
+{1, 10}
+...
+{9, 10}
+...
+{7, 90}
+{8, 90}
+{9, 90}
+```
+Thus, the first number changes 10 times for each second number and we have 10 second numbers. The [rule of product](http://en.wikipedia.org/wiki/Rule_of_product) readily applies, since these are disjoint sets. 
+
+Now, __we can do what we want with the numbers thus obtained__. In this case, we simply add them up and increment that sum to get a sequence from 1 to 100:
+
+```sql
+mysql> select (units.num + tens.num + 1) one_to_hundred from
+    -> (select 0 num union all select 1 num union all 
+    -> select 2 num union all select 3 num union all 
+    -> select 4 num union all select 5 num union all 
+    -> select 6 num union all select 7 num union all 
+    -> select 8 num union all select 9 num) units
+    -> cross join 
+    -> (select 0 num union all select 10 num union all select 20 num union all 
+    -> select 30 num union all select 40 num union all 
+    -> select 50 num union all select 60 num union all 
+    -> select 70 num union all select 80 num union all select 90 num) tens;
++----------------+
+| one_to_hundred |
++----------------+
+|              1 |
+|              2 |
+|              3 |
+|              4 |
+|              5 |
+|              6 |
+|              7 |
+|              8 |
+|              9 |
+|             10 |
+|             11 |
+|             12 |
+....
+|             88 |
+|             89 |
+|             90 |
+|             91 |
+|             92 |
+|             93 |
+|             94 |
+|             95 |
+|             96 |
+|             97 |
+|             98 |
+|             99 |
+|            100 |
++----------------+
+100 rows in set (0.02 sec)
+
+```
+
+## Chapter 11: Conditional Logic
+
+In certain cases, you may want your SQL logic to branch in one direction or another __depending on the values of certain columns or expressions__. This chapter focuses on how to write __statements that can behave differently depending on the data encountered during the statement execution__.
+
+### What is Conditional Logic?
+
+Conditional Logic is simply the __ability to take one of several paths during program execution__. For example, when querying customer information, you may want to retrieve:
+
+1. Either the __fname/lname__ columns from the _individual_ table, 
+2. Or, the __name__ column from the _business_ table,
+
+__depending on what type of customer is encountered.__
+
 [1]: http://en.wikipedia.org/wiki/There%27s_more_than_one_way_to_do_it
