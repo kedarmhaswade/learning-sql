@@ -1282,4 +1282,97 @@ Conditional Logic is simply the __ability to take one of several paths during pr
 
 __depending on what type of customer is encountered.__
 
+This is different from using either subquery or joins where there is no conditional execution based on dynamic values is involved.
+
+Let's say that we want to create a report that shows every customer's id, fed_id and _name_: __if__ the customer is an individual, show the first and last name, __otherwise__ show the name of the business. (Assume that a customer is either an individual or a business). For further clarity, show the type of the customer ('Individual', 'Business')
+
+A clear statement like that can _hint at_ conditional logic (if, otherwise ...). In our first attempt, let's say we don't know how to _write_ the conditional logic. Knowing what we already do, we may come up first with a statement like this:
+```sql
+mysql> select cust_id, fed_id, cust_type_cd from customer;
++---------+-------------+--------------+
+| cust_id | fed_id      | cust_type_cd |
++---------+-------------+--------------+
+|       1 | 111-11-1111 | I            |
+|       2 | 222-22-2222 | I            |
+|       3 | 333-33-3333 | I            |
+|       4 | 444-44-4444 | I            |
+|       5 | 555-55-5555 | I            |
+|       6 | 666-66-6666 | I            |
+|       7 | 777-77-7777 | I            |
+|       8 | 888-88-8888 | I            |
+|       9 | 999-99-9999 | I            |
+|      10 | 04-1111111  | B            |
+|      11 | 04-2222222  | B            |
+|      12 | 04-3333333  | B            |
+|      13 | 04-4444444  | B            |
++---------+-------------+--------------+
+13 rows in set (0.00 sec)
+```
+This lacks to expand the cust_type_cd. So, in the next iteration, we make a small improvement using the conditional logic:
+```sql
+mysql> select cust_id, fed_id, (
+    -> case 
+    -> when cust_type_cd = 'I' then 'Individual'
+    -> when cust_type_cd = 'B' then 'Business'
+    -> else 'Error!'
+    -> end
+    -> ) cust_type_cd
+    -> from customer;
++---------+-------------+--------------+
+| cust_id | fed_id      | cust_type_cd |
++---------+-------------+--------------+
+|       1 | 111-11-1111 | Individual   |
+|       2 | 222-22-2222 | Individual   |
+|       3 | 333-33-3333 | Individual   |
+|       4 | 444-44-4444 | Individual   |
+|       5 | 555-55-5555 | Individual   |
+|       6 | 666-66-6666 | Individual   |
+|       7 | 777-77-7777 | Individual   |
+|       8 | 888-88-8888 | Individual   |
+|       9 | 999-99-9999 | Individual   |
+|      10 | 04-1111111  | Business     |
+|      11 | 04-2222222  | Business     |
+|      12 | 04-3333333  | Business     |
+|      13 | 04-4444444  | Business     |
++---------+-------------+--------------+
+13 rows in set (0.00 sec)
+
+```
+And this is how the basic case construct works. There are two types:
+
+### Searched Case
+
+This type is the more versatile of the two:
+
+```sql
+case
+  when C1 then E1
+  when C2 then E2
+  ...
+  when Cn then En
+  [else Ed]
+end
+```
+where,
+`C1, C2, ..., Cn` are the _conditions_, each of which evaluates to either true or false
+and
+`E1, E2, ..., En` are the _expressions_. An expression is just something that returns some value. If a condition is true, then the value of associated expression is that of the entire case statement.
+
+A special optional expression `Ed` is the default expression. If the else clause is present and all other conditions evaluate to false, then Ed is returned. If all of `C1, C2, ..., Cn` evaluate to false and else clause is absent, then a NULL is returned.
+### Simple Case
+
+Here the control is assumed by an 'equality operator' and the conditions become values that are compared to a value of interest:
+
+```sql
+case V0
+  when V1 then E1
+  when V2 then E2
+  ...
+  when Vn then En
+  [else Ed]
+end
+```
+
+Thus, we are interested in seeing if V0 is _equal to_ any of `V1, V2,...,Vn` and if it is, then the value of the associated expression is the value of the case statement.
+
 [1]: http://en.wikipedia.org/wiki/There%27s_more_than_one_way_to_do_it
