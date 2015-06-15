@@ -1225,16 +1225,16 @@ Now, __we can do what we want with the numbers thus obtained__. In this case, we
 
 ```sql
 mysql> select (units.num + tens.num + 1) one_to_hundred from
-    -> (select 0 num union all select 1 num union all 
-    -> select 2 num union all select 3 num union all 
-    -> select 4 num union all select 5 num union all 
-    -> select 6 num union all select 7 num union all 
-    -> select 8 num union all select 9 num) units
-    -> cross join 
-    -> (select 0 num union all select 10 num union all select 20 num union all 
-    -> select 30 num union all select 40 num union all 
-    -> select 50 num union all select 60 num union all 
-    -> select 70 num union all select 80 num union all select 90 num) tens;
+     (select 0 num union all select 1 num union all 
+     select 2 num union all select 3 num union all 
+     select 4 num union all select 5 num union all 
+     select 6 num union all select 7 num union all 
+     select 8 num union all select 9 num) units
+     cross join 
+     (select 0 num union all select 10 num union all select 20 num union all 
+     select 30 num union all select 40 num union all 
+     select 50 num union all select 60 num union all 
+     select 70 num union all select 80 num union all select 90 num) tens;
 +----------------+
 | one_to_hundred |
 +----------------+
@@ -1311,13 +1311,13 @@ mysql> select cust_id, fed_id, cust_type_cd from customer;
 This lacks to expand the cust_type_cd. So, in the next iteration, we make a small improvement using the conditional logic:
 ```sql
 mysql> select cust_id, fed_id, (
-    -> case 
-    -> when cust_type_cd = 'I' then 'Individual'
-    -> when cust_type_cd = 'B' then 'Business'
-    -> else 'Error!'
-    -> end
-    -> ) cust_type_cd
-    -> from customer;
+     case 
+     when cust_type_cd = 'I' then 'Individual'
+     when cust_type_cd = 'B' then 'Business'
+     else 'Error!'
+     end
+     ) cust_type_cd
+     from customer;
 +---------+-------------+--------------+
 | cust_id | fed_id      | cust_type_cd |
 +---------+-------------+--------------+
@@ -1374,5 +1374,111 @@ end
 ```
 
 Thus, we are interested in seeing if V0 is _equal to_ any of `V1, V2,...,Vn` and if it is, then the value of the associated expression is the value of the case statement.
+
+### Transforming Result Set 
+
+Interestingly, since the case statements get evaluated to values, they can be used in projections (i.e. select clause)! One use of this is to create/fabricate some columns in the result sets. 
+
+Consider the query to display the number of accounts grouped by their open_date:
+```sql
+mysql> select YEAR(open_date) year, count(*) how_many from account group by year(open_date);
++------+----------+
+| year | how_many |
++------+----------+
+| 2000 |        3 |
+| 2001 |        4 |
+| 2002 |        5 |
+| 2003 |        3 |
+| 2004 |        9 |
++------+----------+
+5 rows in set (0.00 sec)
+```
+What if you wanted these to be printed as one single row with as many columns as there are _open years_ as long as those years are between 2000 and 2005?
+
+In this case, you could use conditional logic combined with aggregate function. Since an account is opened in exactly one year, an account is 'fixed' to one _open year_. So, for each record in the account table, we can get exactly one year, the year in which it was opened. We can then compare that year with each of the years between 2000 and 2005 and we can choose additional columns:
+```sql
+mysql> select SUM(CASE 
+     WHEN YEAR(a.open_date) = '2000' THEN 1
+     ELSE 0
+     END) year_2000,
+     SUM(CASE 
+     WHEN YEAR(a.open_date) = '2001' THEN 1
+     ELSE 0
+     END) year_2001,
+     SUM(CASE 
+     WHEN YEAR(a.open_date) = '2002' THEN 1
+     ELSE 0
+     END) year_2002,
+     SUM(CASE 
+     WHEN YEAR(a.open_date) = '2003' THEN 1
+     ELSE 0
+     END) year_2003,
+     SUM(CASE 
+     WHEN YEAR(a.open_date) = '2004' THEN 1
+     ELSE 0
+     END) year_2004,
+     SUM(CASE 
+     WHEN YEAR(a.open_date) = '2005' THEN 1
+     ELSE 0
+     END) year_2005
+     from account a;
+
++-----------+-----------+-----------+-----------+-----------+-----------+
+| year_2000 | year_2001 | year_2002 | year_2003 | year_2004 | year_2005 |
++-----------+-----------+-----------+-----------+-----------+-----------+
+|         3 |         4 |         5 |         3 |         9 |         0 |
++-----------+-----------+-----------+-----------+-----------+-----------+
+1 row in set (0.00 sec)
+
+```
+
+### Selective Aggregation
+
+### Checking for Existence
+
+Write a query that displays cust_id, fed_id, cust_type_cd, whether the customer has a checking account and whether the customer has a savings account.
+
+We know how to create/fabricate additional columns using conditional logic (also look at the suggestive words like 'whether'): ``select cust_id, fed_id, cust_type_cd, () has_checking, () has_savings`` seems straightforward. All we have got to do is provide an appropriate case statement for each customer that correctly evaluates to a 'Y' or an 'N' (thus, we need to fulfil the pairs of parentheses:
+```sql
+select c.cust_id, fed_id, cust_type_cd, 
+       (CASE  
+            WHEN EXISTS (select product_cd from account where product_cd = 'SAV' and cust_id = c.cust_id) 
+            THEN 'Y'  
+            ELSE 'N' 
+        END) has_savings,
+       (CASE  
+            WHEN EXISTS (select product_cd from account where product_cd = 'CHK' and cust_id = c.cust_id) 
+            THEN 'Y'  
+            ELSE 'N' 
+        END) has_checking
+from customer c;
++---------+-------------+--------------+-------------+--------------+
+| cust_id | fed_id      | cust_type_cd | has_savings | has_checking |
++---------+-------------+--------------+-------------+--------------+
+|       1 | 111-11-1111 | I            | Y           | Y            |
+|       2 | 222-22-2222 | I            | Y           | Y            |
+|       3 | 333-33-3333 | I            | N           | Y            |
+|       4 | 444-44-4444 | I            | Y           | Y            |
+|       5 | 555-55-5555 | I            | N           | Y            |
+|       6 | 666-66-6666 | I            | N           | Y            |
+|       7 | 777-77-7777 | I            | N           | N            |
+|       8 | 888-88-8888 | I            | Y           | Y            |
+|       9 | 999-99-9999 | I            | N           | Y            |
+|      10 | 04-1111111  | B            | N           | Y            |
+|      11 | 04-2222222  | B            | N           | N            |
+|      12 | 04-3333333  | B            | N           | Y            |
+|      13 | 04-4444444  | B            | N           | N            |
++---------+-------------+--------------+-------------+--------------+
+13 rows in set (0.00 sec)
+```
+### Division by Zero Errors
+
+Note that MySQL sets the _result_ of dividing by zero to NULL instead of throwing an error. 
+
+### Handling Null Values
+
+While null values are appropriate to store in a table if the value of a column _is_ unknown. But null values are not usually appropriate for display. They are also problematic in expressions. 
+
+__When performing calculations, case expressions are useful for translating a null value into a number (usually 0 or 1)__.
 
 [1]: http://en.wikipedia.org/wiki/There%27s_more_than_one_way_to_do_it
