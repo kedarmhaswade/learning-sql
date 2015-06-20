@@ -12,6 +12,7 @@ def get_next(cur_end, level, n)
   return next_start, next_end
 end
 n, n_nodes = ARGV.map {|arg| arg.to_i}
+# this does not work!
 puts "n: #{n}, n_nodes: #{n_nodes}"
 level = 0
 i = 0
