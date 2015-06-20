@@ -58,6 +58,3 @@ PLATFORMS
 DEPENDENCIES
   cheat
   github-markdown-preview
-
-BUNDLED WITH
-   1.10.3
