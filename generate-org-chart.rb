@@ -40,13 +40,22 @@ if ARGV.length < 2
   $stderr.puts "e.g. #{$0} 10 1000 > emp.csv"
   exit 1
 end
+def id_names n_nodes
+  idn = {}
+  1.upto n_nodes do |id|
+    idn[id] = Faker::Name.name
+  end
+  idn
+end
+require 'faker'
 n, n_nodes = ARGV.map {|s| s.to_i}
 puts "An Employee Database"
-puts "id, emp_id, mgr_id"
+puts "id, emp_id, emp_name, mgr_id"
 id = 1
-puts "1, 1, NULL"
+puts "1, 1, #{Faker::Name.name}, NULL"
+idn = id_names(n_nodes);
 visit_nary_tree(n, n_nodes) do |mgr, emp|
-  printf "%d, %d, %d\n", id + 1, emp, mgr 
+  printf "%d, %d, %s, %d\n", id + 1, emp, idn[emp], mgr 
   id += 1
 end
 
